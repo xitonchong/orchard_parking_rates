@@ -53,17 +53,22 @@ class MALL(pydantic.BaseModel):
         if '½ hr' in v:
             v = v.replace('½ hr', '30 mins')
             print('in validator ½ hr', v)
+        if 'sub.' in v:
+            v = v.replace('sub.', 'sub')
+            print('in validator sub.')
+        if 'hr;' in v:
+            v = v.replace('hr;', 'hr,')
         return v
 
 
 
 
 class ParkingHour(pydantic.BaseModel):
-    p_type = str # per-entry, base+sub
-    start_hour: Optional[datetime.time] = None # some fields does not have this info
-    end_hour:  Optional[datetime.time] = None 
+    p_type : str # per-entry, base+sub
+    start_hour: Optional[time.struct_time] = None # some fields does not have this info
+    end_hour:  Optional[time.struct_time] = None 
     base_rate: float  # can be base rate or per entry
-    sub_rate: Optional[float] = None
+    sub_rate: Optional[float] = 0.0
 
 
 
@@ -72,41 +77,70 @@ class ParkingHour(pydantic.BaseModel):
 class PROC_MALL:
     def __init__(self, mall: MALL):
         self.car_park = mall.car_park 
-        self.wd_b5 = self.get_info('weekday', mall.weekday) #List[ParkingHour]
-    
+        self.weekday = self.get_info(mall.weekday) #List[ParkingHour]
+        self.saturday = self.get_info(mall.saturday)
+        self.sunday = self.get_info(mall.sunday)
 
-    def get_info(self, level, data):
+    def get_info(self, data):
         wd_parking = [] # whole day parking
-        if level == 'weekday':
-            # manipulate data here
-            lines: List[str] = re.split("\s?mins(?:.)?", data)
-            for line in lines:
-                # get the time, parking rate
-                if re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*[0-9]+(?:.+)?hr.*[0-9]+(?:.+)?for sub(?:.+)?[0-9]+(mins|min)?", line):
-                    '''base + sub rate'''
-                    result = find_numerical_inputs(line) 
-                    print(f"{line} base+sub rate: {result}, {len(result)} \n")
-                    # input_dat = {
-                    #     'p_type': 'base_sub',
-                    #     'start_hour': result[0], 'end_hour': result[1], 'base_rate': result[2], 
-                    #     'sub_rate': result[3]
-                    # }
-                    # ParkingHour()
-                elif re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*entry(?:.)?$", line):
-                    ''' per entry with time'''
-                    result = find_numerical_inputs(line) 
-                    print(f"{line} per entry: {result}, {len(result)} \n")
-                elif re.search("[0-9]+(am|pm).*per entry(?:.)?",  line ):
-                    ''' per entry after time'''
-                    result = find_numerical_inputs(line)
-                    print(f"{line} per entry aft hour: {result}, {len(result)} \n")
-                else:
-                    print('empty line? ', line)
 
-        else:
-            raise NotImplementedError(f"preprocessing for string is not implemented: {level}")
+        #lines: List[str] = re.split("\s?mins(?:.)?", data)
+        lines = split_lines(data)
+        for line in lines:
+            # get the time, parking rate
+            if re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*[0-9]+(?:.+)?hr.*[0-9]+(?:.+)?for sub(?:.+)?[0-9]+(mins|min)?", line):
+                '''base + sub rate'''
+                result = find_numerical_inputs(line) 
+                if len(result) != 6:
+                    continue 
+                print(f"{line} base+sub rate: {result}, {len(result)} \n")
+                input_dat = {
+                    'p_type': 'base_sub',
+                    'start_hour': convert_to_datetime(result[0]),
+                    'end_hour': convert_to_datetime(result[1]),
+                    'base_rate': float(result[2]), 
+                    'sub_rate': float(result[3])
+                }
+                wd_parking.append( ParkingHour(**input_dat) )
+            elif re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*entry(?:.)?$", line):
+                ''' per entry with time'''
+                result = find_numerical_inputs(line) 
+                print(f"{line} per entry: {result}, {len(result)} \n")
+                input_dat = {
+                    'p_type': 'per_entry_with_time',
+                    'start_hour': convert_to_datetime(result[0]),
+                    'end_hour': convert_to_datetime(result[1]),
+                    'base_rate': float(result[2]), 
+                    'sub_rate': 0.0,
+                }
+                wd_parking.append( ParkingHour(**input_dat))
+            elif re.search("[0-9]+(am|pm).*per entry(?:.)?",  line ):
+                ''' per entry after time'''
+                result = find_numerical_inputs(line)
+                print(f"{line} per entry aft hour: {result}, {len(result)} \n")
+                input_dat = {
+                    'p_type': 'per_entry_after_hour',
+                    'start_hour': convert_to_datetime(result[0]),
+                    'end_hour': convert_to_datetime("11:59pm"),
+                    'base_rate': float(result[1]), 
+                    'sub_rate': 0.0,
+                }
+                wd_parking.append( ParkingHour(**input_dat) )
+            elif re.search("[0-9]+\s+per entry", line):
+                result = find_numerical_inputs(line)
+                print(f"{line} PER_ENTRY: {result}, {len(result)} \n")
+                input_dat = {
+                    'p_type': 'per_entry',
+                    'start_hour': None,
+                    'end_hour': None,
+                    'base_rate': float(result[0]),
+                    'sub_rate': 0.0,
+                }
+                wd_parking.append( ParkingHour(**input_dat) )
+            else:
+                print('empty line? ', line, self.car_park)
 
-
+        return wd_parking 
 
 
 URL = "https://onemotoring.lta.gov.sg/content/onemotoring/home/owning/ongoing-car-costs/parking/parking_rates.1.html"
@@ -121,7 +155,7 @@ mall_list = []
 counter = 0
 for row in nameList:
     #print(name.text)
-    if counter == 10:
+    if counter == 4:
         break
     counter += 1
 
@@ -146,9 +180,12 @@ assert len(mall_list[0]) == 5
 malls: List[MALL]  = [ MALL(*mall) for mall in mall_list ]
 
 
+
 #pprint(malls)
 
 
 print('---- proc mall --------\n')
 
-proc_mall: List[PROC_MALL]  = [ PROC_MALL(mall) for mall in malls]
+proc_malls: List[PROC_MALL]  = [ PROC_MALL(mall) for mall in malls]
+
+[ pprint(pm.__dict__) for pm in proc_malls ]
