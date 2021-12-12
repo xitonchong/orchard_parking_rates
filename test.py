@@ -1,14 +1,34 @@
 import unittest 
 from utils import * 
 
+class TestMisc(unittest.TestCase):
+    def test_generate_combinations(self):
+        inp = [['a', 'b'], [1,2]]
+        res = generate_combinations(inp)
+        ans = [('a',1), ('a',2), ('b', 1), ('b',2)]
+        self.assertEqual(res, ans, f'combinations do not match, {res}, {ans}' )
+
+
+
+
 class TestTimeConversion(unittest.TestCase):
 
     def test_time_conversion(self):
         res = convert_to_datetime("5am")
         self.assertEqual(time.strftime("%H:%M:%S", res), '05:00:00')
+        h = get_hour(res)
+        self.assertEqual(h, 5)
+
         res = convert_to_datetime("6.59pm")
         self.assertEqual(time.strftime("%H:%M:%S", res), '18:59:00')
         print(type(res))
+        h = get_hour(res)
+        self.assertEqual(h, 18)
+
+        # test get hour 
+
+
+
 
 class TestRegex(unittest.TestCase):
 
