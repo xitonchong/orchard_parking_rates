@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
+import numpy as np 
 from typing import Optional, List
 from collections import defaultdict 
 
@@ -12,6 +13,17 @@ import datetime
 import re
 from pprint import pprint
 from utils import * 
+import pandas as pd 
+
+
+#https://www.stackvidhya.com/pretty-print-dataframe/
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', 50)
+pd.set_option('display.colheader_justify', 'center')
+pd.set_option('display.precision', 1)
+
+
 
 
 browser = webdriver.Chrome(executable_path='./drivers/chromedriver')
@@ -68,8 +80,18 @@ class ParkingHour(pydantic.BaseModel):
     start_hour: Optional[time.struct_time] = None # some fields does not have this info
     end_hour:  Optional[time.struct_time] = None 
     base_rate: float  # can be base rate or per entry
-    sub_rate: Optional[float] = 0.0
+    base_rate_period: Optional[float] = None
+    sub_rate: Optional[float] = None 
+    sub_rate_period: Optional[float] = None 
 
+    # def __repr__(self):
+    #     return {
+    #         p_type: self.p_type,
+    #         start_hour: time.strftime(self.start_hour),
+    #         end_hour: time.strftime(self.end_hour),
+    #         base_rate: self.base_rate, 
+    #         sub_rate: self.sub_rate, 
+    #     }
 
 
 
@@ -99,7 +121,9 @@ class PROC_MALL:
                     'start_hour': convert_to_datetime(result[0]),
                     'end_hour': convert_to_datetime(result[1]),
                     'base_rate': float(result[2]), 
-                    'sub_rate': float(result[3])
+                    'base_rate_period': float(result[3]),
+                    'sub_rate': float(result[4]),
+                    'sub_rate_period': float(result[5]), 
                 }
                 wd_parking.append( ParkingHour(**input_dat) )
             elif re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*entry(?:.)?$", line):
@@ -155,7 +179,7 @@ mall_list = []
 counter = 0
 for row in nameList:
     #print(name.text)
-    if counter == 4:
+    if counter == 2:
         break
     counter += 1
 
@@ -189,3 +213,86 @@ print('---- proc mall --------\n')
 proc_malls: List[PROC_MALL]  = [ PROC_MALL(mall) for mall in malls]
 
 [ pprint(pm.__dict__) for pm in proc_malls ]
+
+## create a multiindex series
+
+
+def get_mall_names(proc_malls):
+    lst = [mall.car_park for mall in proc_malls]
+    return lst 
+
+def get_mall_fields(mall):
+    #return [ a for a in dir(mall) if a in ['weekday', 'saturday', 'sunday']]
+    for attr, value in mall.__dict__.items():
+        if attr in ['weekday', 'saturday', 'sunday']:
+            yield attr, value 
+
+
+def populate_rates(proc_malls, df):
+    print('-|'*50)
+    for mall in proc_malls:
+        cp_name = mall.car_park
+        # iterate over different parking rate list 
+        for field, value in get_mall_fields(mall):
+            #(mall, field)
+            # get starting hour 
+            objs : List[Parking_Hour] = value
+            for obj in objs: 
+                print(cp_name, obj)
+                assert isinstance(obj, ParkingHour)
+                if obj.p_type == 'base_sub':
+                    print(' BASE SUB --- ' * 5)
+                    sh, eh = get_hour(obj.start_hour), get_hour(obj.end_hour)
+                elif obj.p_type == 'per_entry':
+                    #print(' PER ENTRY --- ' * 5)
+                    sh, eh = 0, 24
+                elif obj.p_type == 'per_entry_with_time':
+                    #print(' PER ENTRY WITH TIME --- ' * 5)
+                    sh, eh = get_hour(obj.start_hour), get_hour(obj.end_hour)
+                elif obj.p_type == 'per_entry_after_time':
+                    print('PER ENTRY AFTER TIME -- '* 5)
+                    sh, eh = get_hour(obj.start_hour), 24
+                else: 
+                    print('- Error -'* 10)
+                    raise NotImplementedError(f'{obj.p_type} is not implemented!')
+
+                for h in range(sh, eh):
+                    df.loc[(cp_name, field, h), :] = obj.base_rate, 0.0
+    return 
+
+
+def create_dataframe(proc_malls: List[PROC_MALL]) -> pd.DataFrame:
+    
+    mall_names = get_mall_names(proc_malls)
+    days = ['weekday', 'saturday', 'sunday']
+    time = range(24)
+    col_names =['car_park', 'days', 'hour']
+    comb = generate_combinations([mall_names, days, time])
+    #df = pd.DataFrame(comb, columns=col_names)
+    
+    # create a multiindex so that values of base rate and sub rate are easier to populate
+    index = pd.MultiIndex.from_product([mall_names, days, time], 
+            names=col_names)
+    cols = pd.MultiIndex.from_tuples(['base_rate', 'sub_rate'])
+    length_of_df = len(comb)
+
+    df = pd.DataFrame( np.zeros((length_of_df, 2))*np.nan, 
+            index=index, columns=cols)
+    
+    populate_rates(proc_malls, df)
+
+    base_rate = []# infer from proc object
+    return df 
+
+print('*'*100)
+field = get_mall_fields(proc_malls[0])
+print(field)
+
+table = create_dataframe(proc_malls) 
+table.to_csv('parking_rates.csv')
+
+
+
+# print('*'*100)
+# print(table )
+# print(table.index)
