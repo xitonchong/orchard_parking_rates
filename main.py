@@ -255,9 +255,13 @@ def populate_rates(proc_malls, df):
                 else: 
                     print('- Error -'* 10)
                     raise NotImplementedError(f'{obj.p_type} is not implemented!')
-
-                for h in range(sh, eh):
-                    df.loc[(cp_name, field, h), :] = obj.base_rate, 0.0
+                
+                hour_list = generate_hour_list(sh, eh)
+                sub_rate = obj.sub_rate if obj.sub_rate else 0.0
+                print('#'*100)
+                print(f"{cp_name}: writing fields: {field}, {hour_list}, {obj.base_rate}, {sub_rate} \n")
+                for h in hour_list:
+                    df.loc[(cp_name, field, h), :] = obj.base_rate, sub_rate 
     return 
 
 

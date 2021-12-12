@@ -6,6 +6,16 @@ from itertools import product
 from typing import List
 
 
+def generate_hour_list(start_hour:int, end_hour:int)-> List[int]:
+    if start_hour <= end_hour:
+        # 0700 -> 2000
+        return list(range(start_hour, end_hour))
+    else:
+        # 5pm -> 7am
+        # to midnight, midnight to wee hour
+        return list(range(start_hour, 24)) + \
+                list(range(0, end_hour))
+
 
 def get_hour(t, output='hour'):
     h, m =map(int, time.strftime("%H %M", t).split(' '))
