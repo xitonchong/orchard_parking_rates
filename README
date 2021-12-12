@@ -1,2 +1,32 @@
+OBJECTIVES:
+1. demonstrate the use of online visualization tool, Tableau to monitor live data 
+
+METHODOLOGY:
+1. web scraping of parking rates across Ochard Road Street (SG)
+2. regex to match sentence filter sentences into differnt groups
+3. based on different groups, extract the parking rates info; 
+    1. base rate (required)
+    2. subsequent rate (required)
+    3. starting hour (optional), some parking is charged based on per-entry regardless of hour
+    4. end hour (optional), # same as above
+4. populate all info to a csv file 
+5. upload the csv file to google drive via SDK, 
+6. enabling cron job to this script to enable data update periodically (once per week), data is relatively stale
+7. tableau to ingest data from google drive, (there is an option to refresh data manually, default is once per day)
+
+
+TABLEAU link:
+<to be updated> 
+
+
+SETUP
+1. download selenium driver to local folder named 'drivers', take note of browser version
+
+
 TO START VIRTUAL ENV
 source .env/bin/activate
+
+INSTALL DEPENDENCIES
+pip install -r requirements.txt 
+
+
