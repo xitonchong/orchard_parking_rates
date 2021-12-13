@@ -4,7 +4,30 @@ import re
 import time 
 from itertools import product 
 from typing import List
+from pydrive.drive import GoogleDrive
+from pydrive.auth import GoogleAuth 
+import pandas as pd 
+import os 
 
+
+gauth = GoogleAuth() 
+
+def upload_csv():
+    pass
+
+
+def gen_hour_list(hours: List[int], df):
+    
+    for h in hours:
+        if h == 1:
+            continue
+        # forward looking of the base rate from current hour
+        indexer  = pd.api.indexers.FixedForwardWindowIndexer(window_size=h)
+        # look forward h ahead and minus current hour sub rate 
+        df["{}_hour_from".format(h)] = df['base_rate'] + \
+                df['sub_rate'].rolling(window=indexer, min_periods=1).sum() -\
+                df['sub_rate']
+    return df
 
 
 

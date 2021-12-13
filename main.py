@@ -340,7 +340,11 @@ field = get_mall_fields(proc_malls[0])
 print(field)
 
 table = create_dataframe(proc_malls) 
-table.reset_index().to_csv('parking_rates.csv')
+table = table.reset_index()
+
+gen_hour_list([2,3], table)
+
+table.to_csv('parking_rates.csv')
 
 
 
