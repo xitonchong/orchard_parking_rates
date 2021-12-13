@@ -1,6 +1,9 @@
 OBJECTIVES:
 1. demonstrate the use of online visualization tool, Tableau to monitor live data 
 
+Data Source URL:
+https://onemotoring.lta.gov.sg/content/onemotoring/home/owning/ongoing-car-costs/parking/parking_rates.1.html
+
 METHODOLOGY:
 1. web scraping of parking rates across Ochard Road Street (SG)
 2. regex to match sentence filter sentences into differnt groups
@@ -11,12 +14,19 @@ METHODOLOGY:
     4. end hour (optional), # same as above
 4. populate all info to a csv file 
 5. upload the csv file to google drive via SDK, 
-6. enabling cron job to this script to enable data update periodically (once per week), data is relatively stale
+6. enabling cron job to this script to enable data update periodically, data is relatively stale
 7. tableau to ingest data from google drive, (there is an option to refresh data manually, default is once per day)
 
 
+TO-DO:
+1. corner case of cumulative parking rates that span to the next day, e.g. 2300 to 0100. 
+2. Adding more malls to the viz
+
+
 TABLEAU link:
-<to be updated> 
+https://public.tableau.com/app/profile/xitonchong/viz/orchard_road_parking_rates/ParkingratesacrossOrchardRoad
+
+You can also see the visualization in the images folder.
 
 
 SETUP
