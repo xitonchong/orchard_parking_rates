@@ -6,6 +6,8 @@ from itertools import product
 from typing import List
 
 
+
+
 def generate_hour_list(start_hour:int, end_hour:int)-> List[int]:
     if start_hour <= end_hour:
         # 0700 -> 2000
@@ -37,7 +39,14 @@ def convert_to_datetime(mystr):
     return False 
 
 def split_lines(text):
-    lines = re.split('(?<=\.)\s|;\s+', text)
+    if re.search('(?:\d+(?:\.\d*)?|\.\d+)/[0-9]+(?:.*)?min(s)?.*(?:\d+(?:\.\d*)?|\.\d+)(am|pm).*(?:\d+(?:\.\d*)?|\.\d+)(am|pm)', text):
+        #print("special case : e.g.$1.30/30 min  7am to 11am $1.50/30 mins 11am to 5pm")
+        rate_per_x_min = re.findall("(?:\$)?(?:\d+(?:\.\d*)?|\.\d+)/[0-9]+.?min", text)
+        start_to_end_hour = re.findall("(?:\d+(?:\.\d*)?|\.\d+)(?:am|pm)?\s?to\s?(?:\d+(?:\.\d*)?|\.\d+)(?:am|pm)?", text)
+        lines = ["{} {}".format(b,a) for a, b in zip(rate_per_x_min, start_to_end_hour)]
+        print('special split line \n', lines)
+    else:
+        lines = re.split('(?<=\.)\s|;\s+', text)
     return lines
 
 def generate_combinations(a: List[list]):

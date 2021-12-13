@@ -59,6 +59,7 @@ class MALL(pydantic.BaseModel):
         return v
 
 
+
     @validator('*', pre=True)
     def check_for_special_char(cls, v):
         assert isinstance(v, str)
@@ -70,6 +71,8 @@ class MALL(pydantic.BaseModel):
             print('in validator sub.')
         if 'hr;' in v:
             v = v.replace('hr;', 'hr,')
+        if '(Per Minute Charging)' in v:
+            v = v.replace('(Per Minute Charging)', '')
         return v
 
 
@@ -110,7 +113,49 @@ class PROC_MALL:
         lines = split_lines(data)
         for line in lines:
             # get the time, parking rate
-            if re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*[0-9]+(?:.+)?hr.*[0-9]+(?:.+)?for sub(?:.+)?[0-9]+(mins|min)?", line):
+            if re.search('[0-9]+(am|pm).*[0-9]+(am|pm).*[0-9]+/[0-9]+(?:.*)?min(s)?', line):
+                result = find_numerical_inputs(line)
+                print(f"{line} per minute charging with time: {result} \n")
+                result[2] = float(result[2]) * 60.0 / float(result[3])
+                result[3] = 60
+                input_dat = {
+                    'p_type': 'per_min_charging_with_time',
+                    'start_hour': convert_to_datetime(result[0]),
+                    'end_hour': convert_to_datetime(result[1]),
+                    'base_rate': float(result[2]),
+                    'base_rate_period': float(result[3]),
+                    'sub_rate': float(result[2]),
+                    'sub_rate_period': float(result[3]),
+
+                }
+                wd_parking.append( ParkingHour(**input_dat) )
+            elif  re.search("[0-9]+(am|pm).*[0-9]+(am|pm)/[0-9]+(am|pm).*[0-9]+(am|pm)+(?:.+)?.*[0-9]+(?:.+)?hr.+[0-9]+(?:.+)?for sub(?:.+)?[0-9]+(mins|min)?", line):
+                result = find_numerical_inputs(line)
+                if len(result) != 8:
+                    print('len result not 8', result)
+                    continue 
+                print(f"{line} double time period rate: {result}, {len(result)} \n")
+                input_dat1 = {
+                    'p_type': 'base_sub',
+                    'start_hour': convert_to_datetime(result[0]),
+                    'end_hour': convert_to_datetime(result[1]),
+                    'base_rate': float(result[4]), 
+                    'base_rate_period': float(result[5]),
+                    'sub_rate': float(result[6]),
+                    'sub_rate_period': float(result[7]), 
+                }
+                wd_parking.append( ParkingHour(**input_dat1) )
+                input_dat2 = {
+                    'p_type': 'base_sub',
+                    'start_hour': convert_to_datetime(result[2]),
+                    'end_hour': convert_to_datetime(result[3]),
+                    'base_rate': float(result[4]), 
+                    'base_rate_period': float(result[5]),
+                    'sub_rate': float(result[6]),
+                    'sub_rate_period': float(result[7]), 
+                }
+                wd_parking.append( ParkingHour(**input_dat2) )
+            elif re.search("[0-9]+(am|pm).*[0-9]+(am|pm)(?:.+)?[0-9]+.*[0-9]+(?:.+)?hr.*[0-9]+(?:.+)?for sub(?:.+)?[0-9]+(mins|min)?", line):
                 '''base + sub rate'''
                 result = find_numerical_inputs(line) 
                 if len(result) != 6:
@@ -179,7 +224,7 @@ mall_list = []
 counter = 0
 for row in nameList:
     #print(name.text)
-    if counter == 2:
+    if counter == 6:
         break
     counter += 1
 
@@ -246,7 +291,8 @@ def populate_rates(proc_malls, df):
                 elif obj.p_type == 'per_entry':
                     #print(' PER ENTRY --- ' * 5)
                     sh, eh = 0, 24
-                elif obj.p_type == 'per_entry_with_time':
+                elif (obj.p_type == 'per_entry_with_time') or \
+                    (obj.p_type == 'per_min_charging_with_time'):
                     #print(' PER ENTRY WITH TIME --- ' * 5)
                     sh, eh = get_hour(obj.start_hour), get_hour(obj.end_hour)
                 elif obj.p_type == 'per_entry_after_time':
@@ -277,7 +323,8 @@ def create_dataframe(proc_malls: List[PROC_MALL]) -> pd.DataFrame:
     # create a multiindex so that values of base rate and sub rate are easier to populate
     index = pd.MultiIndex.from_product([mall_names, days, time], 
             names=col_names)
-    cols = pd.MultiIndex.from_tuples(['base_rate', 'sub_rate'])
+    #cols = pd.MultiIndex.from_tuples([('base_rate'), ('sub_rate')])
+    cols = ['base_rate', 'sub_rate']
     length_of_df = len(comb)
 
     df = pd.DataFrame( np.zeros((length_of_df, 2))*np.nan, 
@@ -293,7 +340,7 @@ field = get_mall_fields(proc_malls[0])
 print(field)
 
 table = create_dataframe(proc_malls) 
-table.to_csv('parking_rates.csv')
+table.reset_index().to_csv('parking_rates.csv')
 
 
 
